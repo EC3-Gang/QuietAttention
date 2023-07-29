@@ -15,6 +15,19 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
+class GhostMax(nn.Module):
+    def forward(self, x, dim=None):
+        
+        x_exp = torch.exp(x)
+        x_sum = 1 + torch.sum(x_exp, dim=dim, keepdim=True)
+
+        # Compute softmax values
+        softmax = x_exp / x_sum
+
+        return softmax
+
+GhostMax = GhostMax()
+
 class LayerNorm(nn.Module):
     """ LayerNorm but with an optional bias. PyTorch doesn't support simply bias=False """
 
@@ -66,7 +79,7 @@ class CausalSelfAttention(nn.Module):
             # manual implementation of attention
             att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
             att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
-            att = F.softmax(att, dim=-1)
+            att = GhostMax(att, dim=-1)
             att = self.attn_dropout(att)
             y = att @ v # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
         y = y.transpose(1, 2).contiguous().view(B, T, C) # re-assemble all head outputs side by side
